@@ -52,29 +52,40 @@ def process_html_file(filepath):
     with open(filepath, 'r', encoding='utf-8') as file:
         soup = BeautifulSoup(file.read(), 'html.parser')
 
+    # Find the base directory name (series name) to organize volumes
     series_name_tag = soup.find('span', class_='series-name')
     if series_name_tag:
         series_name = series_name_tag.text.strip()
-        directory_path = os.path.join('data', 'truyen-details', series_name)
-        if os.path.exists(directory_path):
-            print(f"Directory for {series_name} already exists. Skipping.")
-            return
+        base_directory_path = os.path.join('data', 'truyen-details', series_name)
 
-        volume_list = soup.find('section', class_='volume-list')
-        if volume_list:
-            links = volume_list.find_all('a', href=True, title=True)
-            for link in links:
-                chapter_url = link['href']
-                if not chapter_url.startswith('http'):
-                    chapter_url = 'https://ln.hako.vn' + chapter_url
-                chapter_title = link['title']
-                html_content = download_html(chapter_url)
-                if html_content:
-                    filename = f"{chapter_title}.html".replace('/', '_')
-                    save_html(html_content, directory_path, filename)
-                    print(f"Saved {chapter_title} content.")
-                else:
-                    log_failed_download(chapter_url)
+        # Iterate over each volume in the volume list
+        volume_sections = soup.find_all('section', class_='volume-list')
+        for volume_section in volume_sections:
+            volume_title_tag = volume_section.find('span', class_='sect-title')
+            if volume_title_tag:
+                volume_title = volume_title_tag.text.strip()
+                # Replace or handle characters that may not be suitable for directory names
+                safe_volume_title = volume_title.replace('/', '_').replace('\\', '_')
+                volume_directory_path = os.path.join(base_directory_path, safe_volume_title)
+
+                if not os.path.exists(volume_directory_path):
+                    os.makedirs(volume_directory_path, exist_ok=True)
+                    print(f"Directory created for volume: {volume_title}")
+
+                # Find all chapter links within the volume section
+                links = volume_section.find_all('a', href=True, title=True)
+                for link in links:
+                    chapter_url = link['href']
+                    if not chapter_url.startswith('http'):
+                        chapter_url = 'https://ln.hako.vn' + chapter_url
+                    chapter_title = link['title']
+                    html_content = download_html(chapter_url)
+                    if html_content:
+                        filename = f"{chapter_title}.html".replace('/', '_')
+                        save_html(html_content, volume_directory_path, filename)
+                        print(f"Saved {chapter_title} content.")
+                    else:
+                        log_failed_download(chapter_url)
 
 def process_all_html_files(directory):
     for filename in os.listdir(directory):
@@ -83,5 +94,5 @@ def process_all_html_files(directory):
             process_html_file(filepath)
 
 # Example usage
-directory_path = 'data/truyen'  # Path to the directory containing HTML files
+directory_path = 'data/truyen'  
 process_all_html_files(directory_path)
